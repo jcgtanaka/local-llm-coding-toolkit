@@ -69,10 +69,22 @@ often not even the strongest one:
 
 - `docs/why-route-to-local-models.md`: the economics of when offloading
   actually saves anything.
+- `docs/model-tier-routing.md`: extending the same routing principle to a
+  cloud provider's own model tiers, not just local vs. cloud.
 - `docs/verification-before-trust.md`: the non-negotiable verification rule,
   and why bigger local models are not automatically safer.
 - `docs/context-window-pitfalls.md`: the single most important operational
   lesson, silent truncation, and the GPU-offload speed cliff.
+
+## Disclaimer
+
+This project is provided as-is, with no warranty of any kind. Use it at your
+own risk. It is not officially affiliated with, endorsed by, or sponsored by
+Ollama, Anthropic, or any other model, tool, or company named in these docs;
+all trademarks belong to their respective owners. Benchmark numbers shown as
+examples are illustrative: real results depend on your specific hardware,
+model, and quantization, and you should re-run the benchmark on your own
+machine before relying on any figure.
 
 ## License
 

@@ -11,6 +11,10 @@ To install it, copy this whole folder into a project as
 fill in the per-model context ceilings in `SKILL.md` after running the
 benchmark script on your own hardware.
 
+See also `model-routing.md` in this folder for routing across Claude Code's
+own model tiers (main model, subagent defaults, per-subagent pinning, and
+per-call overrides), not just local vs. cloud.
+
 This repository currently ships only this one adapter. Other coding agents
 (Cursor, Aider, plain scripts, or anything else) can follow the same shape:
 a small dispatcher script plus a verification step, with no agent-specific
