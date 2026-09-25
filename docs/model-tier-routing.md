@@ -57,6 +57,24 @@ cost. The token or dollar savings from using a cheaper tier are trivial next
 to the cost of a wrong architecture or security decision that has to be
 unwound later.
 
+## Keeping the ladder current as models change
+
+Model lineups change faster than documentation does. Two things keep this
+pattern from going stale:
+
+- **Tiers are defined by role, not by a model name.** "Fast/cheap," "mid,"
+  and "top" describe a cost/capability/risk profile, not a specific model.
+  When a provider ships a new generation, re-map which of their current
+  models fills each role; the ladder itself does not change.
+- **Verify placement against your own real tasks, not marketing claims.**
+  The same discipline this repo uses for local models (benchmark on your
+  own hardware, do not trust a spec sheet) applies here too: when a new
+  model appears, or an existing one is upgraded, re-check it against the
+  kind of task you route to that tier before assuming it belongs there.
+  A model that was "mid tier" work last year can become this year's "fast
+  tier" as capability shifts; do not assume a name keeps its old meaning
+  forever, especially once a provider reuses or renames a tier.
+
 ## Concrete example: Claude Code
 
 `adapters/claude-code/model-routing.md` documents how this ladder maps onto

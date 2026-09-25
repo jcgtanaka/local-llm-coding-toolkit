@@ -74,6 +74,18 @@ distinct from the main conversation's model, settable in `settings.json`.
 Any subagent file that does not set its own `model:` field falls back to
 that subagent default rather than to the main conversation's model.
 
+### New models do not require editing these files
+
+Claude Code's `model:` field accepts a tier alias (a short name like
+`<top-tier-model>` above stands in for one), not a pinned model version. An
+alias resolves to the provider's current model in that tier. When a new
+model generation ships, an agent file that already points at the top-tier
+alias automatically starts using the new model; there is nothing to edit.
+The re-mapping work described in `../../docs/model-tier-routing.md`
+("keeping the ladder current") is about periodically re-checking that a
+tier's alias still fits the kind of task you route to it, not about
+rewriting these agent files every time a provider ships an update.
+
 ## 3. Per-call override
 
 When the main assistant delegates a task to a subagent, it can pass an
