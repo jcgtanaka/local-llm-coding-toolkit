@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Report the hardware relevant to running local LLMs with Ollama on Linux:
-# OS, CPU, RAM, and GPU (NVIDIA via nvidia-smi, AMD via rocm-smi if present).
-# No external dependencies beyond common CLI tools. Degrades gracefully when
-# a given vendor's tool is not installed.
+# OS, CPU, RAM, and GPU (NVIDIA via nvidia-smi, AMD via rocm-smi, and any
+# other VGA/3D controller via lspci). Read-only, no external dependencies
+# beyond common CLI tools. Degrades gracefully when a tool is not installed.
 
 set -u
 
@@ -40,23 +40,37 @@ echo "== GPU =="
 found_gpu=false
 if command -v nvidia-smi >/dev/null 2>&1; then
   echo "NVIDIA:"
-  nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null \
-    || echo "  not detected (nvidia-smi present but query failed)"
-  found_gpu=true
+  if nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null; then
+    found_gpu=true
+  else
+    echo "  not detected (nvidia-smi present but query failed)"
+  fi
 fi
 if command -v rocm-smi >/dev/null 2>&1; then
-  echo "AMD:"
-  rocm-smi --showproductname --showmeminfo vram 2>/dev/null \
-    || echo "  not detected (rocm-smi present but query failed)"
-  found_gpu=true
+  echo "AMD (rocm-smi):"
+  if rocm-smi --showproductname --showmeminfo vram 2>/dev/null; then
+    found_gpu=true
+  else
+    echo "  not detected (rocm-smi present but query failed)"
+  fi
+fi
+if command -v lspci >/dev/null 2>&1; then
+  pci=$(lspci 2>/dev/null | grep -Ei 'VGA compatible controller|3D controller|Display controller' || true)
+  if [ -n "$pci" ]; then
+    echo "Display adapters (lspci; VRAM size not reported here):"
+    echo "  ${pci//$'\n'/$'\n'  }"
+    # Any adapter that is not a pure NVIDIA/AMD result still counts as detected.
+    found_gpu=true
+  fi
 fi
 if [ "$found_gpu" = false ]; then
-  echo "No NVIDIA (nvidia-smi) or AMD (rocm-smi) tooling detected on PATH."
-  echo "If you have a GPU, install the matching vendor tools to get VRAM info."
+  echo "No discrete GPU detected: expect CPU inference (slower, uses system RAM)."
+  echo "If you do have a GPU, install the vendor tools (nvidia-smi or rocm-smi) for VRAM info."
 fi
 echo
 
-echo "== Rule of thumb =="
-echo "A Q4-quantized model needs roughly (parameters in billions x 0.6) GB of"
-echo "VRAM/unified memory to run fully on-GPU. If you have less, Ollama will"
-echo "offload part of the model to CPU and generation speed will drop sharply."
+echo "== Memory note =="
+echo "Model size, quantization AND context length (KV cache) all consume"
+echo "VRAM/RAM. If they do not fit on the GPU, Ollama offloads part of the"
+echo "work to CPU and generation speed can drop sharply. Run the benchmark"
+echo "(benchmark/benchmark_model.py) to find the real ceiling for your machine."

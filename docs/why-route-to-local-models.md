@@ -32,7 +32,7 @@ context to do the same job."
 | A small, surgical code edit | Bad | Output is nearly as large as input; needs judgment |
 | Any code change that requires understanding intent, side effects, or correctness | Bad | Requires reasoning, not extraction |
 | A task with real ambiguity where guessing wrong is costly | Bad | A small model can guess through ambiguity and sound confident while being wrong |
-| Anything touching production, live trading, financial logic, or safety-relevant code | Bad, always | The verification cost and risk outweigh any token savings; see `verification-before-trust.md` |
+| Anything high-stakes or irreversible, or where a wrong answer is costly | Bad, always | The verification cost and risk outweigh any token savings; see `verification-before-trust.md` |
 | A short input (a sentence, a small config block) | Bad | Writing and sending the prompt costs as much as doing the task directly |
 
 ## The rule of thumb
