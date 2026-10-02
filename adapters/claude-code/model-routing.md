@@ -5,29 +5,35 @@ This is the concrete Claude Code implementation of the general principle in
 tier that can actually be trusted with it, whether that tier is a local
 model, a fast cloud tier, a mid cloud tier, or the top cloud tier.
 
-Everything below is a real, independently verifiable Claude Code mechanism.
-Nothing here is speculative.
+> **Optional reading.** This file is about routing between CLOUD model
+> tiers inside Claude Code. It has nothing to do with local-model offload
+> and is not needed to use `ask_local.py`.
+
+Details of Claude Code's configuration can change between versions, so check
+the official Claude Code documentation for the current settings. This file
+only names mechanisms that are stable and widely documented, and describes
+the rest loosely.
 
 ## 1. Setting a session-wide default model
 
-Claude Code reads a global default model from its `settings.json` (a `model`
-field). This is the model the main conversation uses unless you override it.
-
-You can also switch the main conversation's model interactively at any time
-with the `/model` slash command, without editing any file.
+You can switch the main conversation's model interactively at any time with
+the `/model` slash command. Claude Code also lets you configure a default
+model in its settings; consult the official documentation for the exact
+key and scope for your version.
 
 ## 2. Defining per-subagent tiers
 
 Custom subagent definitions live in `.claude/agents/*.md`. Each file has YAML
-frontmatter, and that frontmatter can set its own `model:` field. Because
-each agent file is independent, different agent files can each pin a
-different model tier: one agent for deep reasoning, a different agent for
-routine implementation, another for purely mechanical work.
+frontmatter, and that frontmatter can set its own `model:` field, which
+accepts the aliases `opus`, `sonnet`, `haiku`, or `inherit` (use the main
+conversation's model), or a full model ID. Because each agent file is
+independent, different agent files can pin different tiers.
 
-Three minimal, illustrative examples. The model identifiers below are
-generic placeholders, not real model names, so this stays usable regardless
-of which exact models you have access to and does not go stale when model
-names change.
+Three minimal, illustrative examples. The agent names
+(`architecture-reviewer`, `feature-implementer`, `cleanup-worker`) are only
+examples; name yours however you like. The `model:` values below are
+placeholders for whichever alias you choose (for example `opus`, `sonnet`,
+`haiku`).
 
 Deep-reasoning / architecture tier:
 
@@ -69,34 +75,26 @@ changes with a single obviously correct outcome. Do not make judgment
 calls; flag anything ambiguous instead of guessing.
 ```
 
-There is also a configurable default model specifically for subagents,
-distinct from the main conversation's model, settable in `settings.json`.
-Any subagent file that does not set its own `model:` field falls back to
-that subagent default rather than to the main conversation's model.
+A subagent file that does not set `model:` follows Claude Code's default
+subagent behavior; see the official documentation for what that default is
+in your version.
 
-### New models do not require editing these files
+### New models and aliases
 
-Claude Code's `model:` field accepts a tier alias (a short name like
-`<top-tier-model>` above stands in for one), not a pinned model version. An
-alias resolves to the provider's current model in that tier. When a new
-model generation ships, an agent file that already points at the top-tier
-alias automatically starts using the new model; there is nothing to edit.
-The re-mapping work described in `../../docs/model-tier-routing.md`
-("keeping the ladder current") is about periodically re-checking that a
-tier's alias still fits the kind of task you route to it, not about
-rewriting these agent files every time a provider ships an update.
+An alias such as `sonnet` is intended to point at a model family tier rather
+than a pinned version, so an agent file using an alias generally does not
+need editing when a new generation ships. Check the documentation for how
+aliases resolve in your version. Separately, periodically re-check that a
+tier still fits the kind of task you route to it (see
+`../../docs/model-tier-routing.md`, "keeping the ladder current").
 
 ## 3. Per-call override
 
-When the main assistant delegates a task to a subagent, it can pass an
-optional model override for that one call. That override supersedes the
-subagent's own default model for that single invocation only; it does not
-change the subagent file, and the next call to that same subagent goes back
-to its normal pinned tier unless overridden again.
-
-This is the mechanism that lets you say, in effect, "for this one task,
-route to the top tier even though this subagent's default is the mid tier,"
-without maintaining a second copy of the subagent definition.
+Depending on your Claude Code version, the tool the main assistant uses to
+delegate to a subagent may accept an optional model override for a single
+call. Where available, it supersedes the subagent's own model for that one
+invocation only. Check the current documentation to confirm it exists in
+your version before relying on it.
 
 ## Worked example: refactoring a module
 
@@ -111,7 +109,7 @@ sub-steps, each with a different risk and complexity profile:
 2. **Decide the new module boundaries and interface.** This is an
    architecture decision: getting it wrong is expensive to undo once the
    rest of the refactor is built on it. Route to the top cloud tier
-   (the `architecture-reviewer`-style subagent above), or a per-call
+   (an `architecture-reviewer`-style subagent as above), or a per-call
    override to that tier if the default subagent for this role is normally
    set lower.
 3. **Rewrite the bulk of the module to the new interface.** Standard
