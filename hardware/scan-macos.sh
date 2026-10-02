@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # Report the hardware relevant to running local LLMs with Ollama on macOS:
-# OS, CPU, RAM, and GPU/chip info. No external dependencies beyond common
-# CLI tools. Degrades gracefully when a given tool is not available.
+# OS, CPU, RAM, and GPU/chip info. Read-only, no external dependencies beyond
+# common CLI tools. Degrades gracefully when a given tool is not available.
 #
-# Note on Apple Silicon: it uses unified memory, so there is no separate
-# VRAM pool. Total system RAM is reported as the usable memory pool for
-# on-GPU model execution.
+# Apple Silicon (arm64) uses unified memory: there is no separate VRAM pool.
+# Intel Macs have separate GPU memory (if a discrete GPU exists) and do not
+# use unified memory.
 
 set -u
 
 echo "== OS =="
 sw_vers 2>/dev/null || echo "not detected"
+echo
+
+arch=$(uname -m 2>/dev/null || echo unknown)
+echo "Architecture: $arch"
 echo
 
 echo "== CPU =="
@@ -39,17 +43,24 @@ echo
 
 echo "== GPU / chip =="
 if command -v system_profiler >/dev/null 2>&1; then
-  system_profiler SPDisplaysDataType 2>/dev/null | grep -E "Chipset Model|Chip:" \
+  system_profiler SPDisplaysDataType 2>/dev/null | grep -E "Chipset Model|Chip:|VRAM|Metal" \
     || echo "not detected (system_profiler returned no display/chip info)"
 else
   echo "not detected (no system_profiler)"
 fi
-echo "Apple Silicon uses unified memory: there is no discrete VRAM pool."
-echo "The total system RAM reported above is the usable pool for on-GPU"
-echo "model execution, shared with everything else running on the machine."
+if [ "$arch" = "arm64" ]; then
+  echo "Apple Silicon uses unified memory: the CPU and GPU share one pool of RAM."
+  echo "macOS limits how much of that pool the GPU can address to a fraction of"
+  echo "total RAM, so the usable amount for a model is less than the total above."
+else
+  echo "This is not an Apple Silicon Mac: unified memory does not apply."
+  echo "GPU memory (VRAM) is listed above if a discrete or integrated GPU reports it."
+fi
 echo
 
-echo "== Rule of thumb =="
-echo "A Q4-quantized model needs roughly (parameters in billions x 0.6) GB of"
-echo "VRAM/unified memory to run fully on-GPU. If you have less, Ollama will"
-echo "offload part of the model to CPU and generation speed will drop sharply."
+echo "== Memory note =="
+echo "Model size, quantization AND context length (KV cache) all consume"
+echo "memory. If they do not fit where the GPU can reach, Ollama offloads part"
+echo "of the work to CPU and generation speed can drop sharply. Run the"
+echo "benchmark (benchmark/benchmark_model.py) to find the real ceiling for"
+echo "your machine."
