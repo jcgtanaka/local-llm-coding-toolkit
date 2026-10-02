@@ -20,8 +20,8 @@ Verification means, at minimum:
   quote, or an extracted value, check at least one or two of those claims
   against the original input directly.
 - **Check for truncation.** See `context-window-pitfalls.md`. A truncated
-  response can look perfectly confident and completely wrong, with no error
-  from the runtime.
+  response can look perfectly confident and completely wrong, and the API
+  reply may carry no error.
 - **Never trust the output when the task had real ambiguity.** If a
   reasonable person could have answered the task two different ways, assume
   the local model guessed, and do not use its answer without checking it
@@ -30,13 +30,14 @@ Verification means, at minimum:
 ## Why this matters: bigger is not automatically better
 
 It is tempting to assume that a larger local model is simply safer to trust.
-Real testing on this exact setup showed otherwise. An 8-9B class model
-performed acceptably on a plain extraction task once its context window was
-sized correctly for the input. A 30B-class model tested in the same setup,
-on the same kind of task, **failed a plain factual-recall test from its own
-input twice in a row**, while also running far slower. Larger parameter
-count did not translate into more reliable recall, and it cost noticeably
-more time per call.
+Observed on the author's machine (results vary by hardware, model,
+quantization and runtime version): a small model performed acceptably on a
+plain extraction task once its context window was sized correctly for the
+input, while a much larger model in the same setup failed a plain
+factual-recall test from its own input twice in a row, and ran far slower.
+This is an anecdote, not a benchmark result, but it matches the general
+point: a larger parameter count does not guarantee more reliable recall,
+and it costs more time per call.
 
 The takeaway is not "always use a smaller model." It is: never assume model
 size correlates with trustworthiness, and never skip verification because a
@@ -49,8 +50,8 @@ suggested.
 
 Never let unverified local-model output touch:
 
-- Production or live code of any kind.
-- Safety-relevant or financial-logic-relevant changes.
+- High-stakes or irreversible code, or secrets handling.
+- Anything where a wrong answer is costly.
 - Anything that will be published or acted on without a human or the cloud
   model reviewing the actual content first.
 

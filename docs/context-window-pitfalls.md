@@ -1,76 +1,78 @@
 # Context window pitfalls
 
-## The single most important operational lesson
+This is the single place in the repo that explains the two operational
+problems below. Other documents link here instead of repeating it.
 
-A runtime serving a local model (Ollama, specifically tested here, and
-likely true of others) will **silently truncate a prompt that exceeds the
-configured context window and still return a confident, wrong answer**.
-There is no error. There is no warning. The response looks exactly like a
-normal, successful answer.
+## Pitfall 1: prompts that do not fit the context window
 
-This was reproduced directly: an 8B model was given roughly 8,500 tokens of
-input with the context window (`num_ctx`) capped at 2,048 tokens. Ollama
-silently kept only the portion of the input that fit inside that window,
-dropping a fact that had been stated at the very start of the prompt. The
-model then confidently answered a question about that dropped fact, and got
-it wrong, with nothing in the response indicating that anything had been
-cut.
+A runtime serving a local model can drop the part of a prompt that does not
+fit in the configured context window (`num_ctx`) and still return a
+confident answer. Whether you see a warning depends on the runtime and its
+version: observed on the author's machine with Ollama, the response looked
+like a normal success and nothing in the API reply said anything had been
+cut. Results vary by hardware, model, quantization and runtime version, and
+newer runtimes may log a server-side warning (which an HTTP client calling
+the API never sees). Do not rely on that: check explicitly.
 
-If you only look at whether the call "succeeded" and whether the answer
-"looks reasonable," you will not catch this. The failure mode is
-indistinguishable from a normal answer unless you specifically check for it.
+Observed example: an 8B-class model was given roughly 8,500 tokens of input
+with `num_ctx` capped at 2,048. Only the portion that fit was kept, a fact
+stated at the very start of the prompt was dropped, and the model answered a
+question about it confidently and wrongly.
 
-## The mitigation
+### The rule the scripts implement
 
-1. **Always explicitly set the context window size (`num_ctx`) for the task
-   at hand.** Do not rely on a model's default; defaults are often smaller
-   than they look, and the "right" size depends on your actual input length
-   plus safety margin.
-2. **Cross-check the runtime's reported prompt-token count against your own
-   rough estimate of the input size.** A simple, conservative
-   characters-per-token ratio (roughly 3.5-4 characters per token for
-   English text) is good enough to catch a large mismatch. If the reported
-   prompt-token count is much lower than your estimate, and your estimated
-   size is close to or above `num_ctx`, treat that as truncation, not as a
-   coincidence.
-3. **Treat a detected mismatch as a failed call, not a partial answer to
-   salvage.** Do not try to use "most of" a truncated response. Increase
-   `num_ctx` (after checking the GPU-offload cliff below), or shrink the
-   input, and re-run the call.
+1. **Always set `num_ctx` explicitly** for the task. Do not rely on a
+   model's default.
+2. **Post-call check.** After the call, compare the runtime's reported
+   `prompt_tokens` with `num_ctx`. When the runtime had to drop input, the
+   prompt fills the window, so the count lands at (or just under) `num_ctx`.
+   Both scripts flag a result as truncated when
+   `prompt_tokens >= num_ctx - margin`, where
+   `margin = max(8, 1% of num_ctx)`.
+3. **Unverified results.** If the runtime reports no prompt-token count (0 or
+   missing), truncation cannot be ruled out. The scripts report this as
+   `unverified`, never as OK. This can also happen when a runtime reuses a
+   cached prompt prefix and does not re-count it.
+4. **Preflight (ask_local.py only).** Before calling, the adapter script
+   estimates the prompt size from its character count (about 3.5 characters
+   per token, deliberately rough) and refuses to send a prompt estimated
+   above 90% of `num_ctx`, unless `--force` is passed.
+5. **Treat a flag as a failed call**, not a partial answer to salvage.
+   Shrink the input or raise `num_ctx` (after checking pitfall 2) and re-run.
 
-The `benchmark/benchmark_model.py` script in this repo implements exactly
-this check, and the adapter's `ask_local.py` dispatcher in
-`adapters/claude-code/` carries the same check into real usage: it compares
-the model's reported prompt-token count against an estimate from the raw
-input length and flags a probable truncation instead of silently returning
-the result.
+The check is a window-saturation test, not a proof of correctness: a prompt
+that ends just under the margin can still be fine, and a prompt below the
+margin is assumed intact. Spot-check the answer anyway (see
+`verification-before-trust.md`).
 
-## The GPU-offload speed cliff
+The benchmark sizes its prompt to 85% of each context by default. Pass
+`--fill 1.0` or higher to overflow the window on purpose and watch the
+truncation flag fire.
 
-Raising `num_ctx` "just in case" is not free. On a real test machine (a
-single consumer GPU in the 10GB VRAM class, for example a 10GB-class card
-such as an RTX 3080), each model tested had a specific context-window
-ceiling. Below that ceiling, the whole model and its context stayed resident
-on the GPU. Past it, Ollama silently began spilling part of the model or its
-KV cache from GPU memory to system RAM and CPU compute, and generation
-speed collapsed by roughly **10 to 20 times**, with no error or warning
-displayed anywhere.
+## Pitfall 2: the GPU-offload speed cliff
 
-This means the safe context window for a given model on a given machine is
-not a property of the model alone: it is a property of the model plus the
-specific hardware plus the context size, and it has to be measured, not
-assumed. A ceiling that works fine on one GPU can be far too high on
-another with less VRAM.
+Raising `num_ctx` "just in case" is not free. A larger context needs more
+memory for the KV cache, on top of the model weights. When everything no
+longer fits in GPU memory, a runtime can place part of the model or cache in
+system RAM and run it on the CPU, and generation gets much slower.
 
-## The practical rule
+Observed on the author's machine (a single consumer GPU), crossing a
+model's ceiling slowed generation by roughly 10 to 20 times with no error
+or warning. The exact numbers, and where the ceiling sits, vary with
+hardware, model, quantization and runtime version, so they have to be
+measured on your own machine, not assumed. A ceiling that works on one GPU
+can be far too high on another with less memory.
+
+### The practical rule
 
 Before relying on any (model, context-size) combination for real work:
 
-1. Run `benchmark/benchmark_model.py` against a range of context sizes on
-   your own hardware.
-2. Note the context size where generation speed drops sharply: that is your
-   safe ceiling for that model on that machine.
-3. Set `num_ctx` at or below that ceiling for real calls, with enough margin
-   above your actual expected input size to avoid truncation.
-4. Re-benchmark whenever you change hardware, change the model, or change
-   Ollama's version, since the ceiling is not guaranteed to stay the same.
+1. Run `benchmark/benchmark_model.py` over a range of context sizes on your
+   own hardware.
+2. Note the context size where generation speed drops sharply, or where the
+   `gpu_split` column stops reading as fully on GPU: that is your ceiling
+   for that model on that machine.
+3. Set `num_ctx` at or below that ceiling for real calls, with enough room
+   above your expected input size to avoid pitfall 1.
+4. Re-benchmark when you change hardware, model, quantization, or the
+   runtime version.

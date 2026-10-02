@@ -78,9 +78,8 @@ pattern from going stale:
 ## Concrete example: Claude Code
 
 `adapters/claude-code/model-routing.md` documents how this ladder maps onto
-Claude Code's real, verifiable mechanisms: a session-wide default model, a
-configurable default for subagents, per-subagent model pinning via
-frontmatter, and a per-call override for delegating a single task to a
-specific tier. Treat it as the worked example of everything above; the
+Claude Code mechanisms (see that file for which ones are named and which are
+described only loosely): a session-wide default model, per-subagent model
+pinning via frontmatter, and per-call overrides. Treat it as the worked example of everything above; the
 principle here is agent-agnostic, but Claude Code is the one implementation
 this repo currently documents in full.
