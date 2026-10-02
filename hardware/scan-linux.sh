@@ -58,7 +58,7 @@ if command -v lspci >/dev/null 2>&1; then
   pci=$(lspci 2>/dev/null | grep -Ei 'VGA compatible controller|3D controller|Display controller' || true)
   if [ -n "$pci" ]; then
     echo "Display adapters (lspci; VRAM size not reported here):"
-    echo "$pci" | sed 's/^/  /'
+    echo "  ${pci//$'\n'/$'\n'  }"
     # Any adapter that is not a pure NVIDIA/AMD result still counts as detected.
     found_gpu=true
   fi
